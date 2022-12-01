@@ -1,0 +1,268 @@
+//Minitor V.1- Remote RH/T Minitor - Second Year Semester 1 Miniproject
+#include <LiquidCrystal_I2C.h>
+#include <Wire.h>
+#include <OneWire.h>
+#include <DallasTemperature.h>      
+#include <ESP8266WiFi.h>                 //Enable Wifi connection
+#include <PubSubClient.h>                // NETPIE MQTT connection library
+#include <TridentTD_LineNotify.h>        // Line notification library
+#define LINE_TOKEN "5idvj3lpFWFDJjuGGAVXdOIZJRqQ0lAng64RxhvMqCS"
+float T;                                 //Variable for storing measured Temp
+
+//---------------------------------------- Initialize DS18B20 sensor. LED pin and LCD screen
+LiquidCrystal_I2C lcd(0x27,20,4);
+
+#define LEDP 12 //D6
+#define ONEWIRE 13 //D7
+OneWire oneWire(ONEWIRE);
+DallasTemperature sensors(&oneWire);
+//float cel = 0 ;
+
+//----------------------------------------SSID and Password wifi declaration
+const char* ssid = "Primmmmmm"; //-->  Wifi name / SSID.
+const char* password = "sorasorap"; //-->   wifi password.
+
+//----------------------------------------  Button and Temp threshold declaration
+const int buttonPin1 = 14; // D5
+float limit1 =0;                      // Threshold 1
+int buttonState1 =0;
+int lastButtonState1 =0;
+
+const int buttonPin2 =15 ;//D8
+float limit2 = 0;                    //Threshold 2
+int buttonState2 =0;
+int lastButtonState2 =0;
+//---------------------------------------- Time variable
+int error=0;                    //Count Up variable
+ int i=0;
+ int LEDS;
+//---------------------------------------- MQTT Server connection & setting
+const char* mqtt_server = "broker.netpie.io";  //Use netpie.io as MQTT Server
+const int mqtt_port = 1883;
+const char* mqtt_Client = "c74bc0ad-22ce-4e75-8782-fa4f064d3ea9"; //address to send data to
+const char* mqtt_username = "JVHbT2pPr1c14GBm1TwDp9ptVRbyWrFp";
+const char* mqtt_password = "XeeQ4A1Kpe_EnmTunt1Gn5(XuOMhbuEs";
+
+WiFiClient espClient;
+PubSubClient client(espClient);
+char msg[100];
+
+//============================================ MQTT server Auto-reconnection
+void reconnect() {
+  while (!client.connected()) {
+    Serial.print("Attempting MQTT connection…");
+    if (client.connect(mqtt_Client, mqtt_username, mqtt_password)) 
+    {
+      Serial.println("connected"); 
+      client.subscribe("@msg/#"); //client(server) subscribe to all messages published from hardware/sensors
+    } 
+    else 
+    {
+      Serial.print("failed, rc="); //Reconnect to MQTT server 
+      Serial.print(client.state());
+      Serial.println("try again in 5 seconds");
+      delay(5000);
+    }
+  }
+}
+//============================================ MQTT data steam verification
+void callback(char* topic, byte* payload, unsigned int length)  //check topic and payload(body) sent from MQTT server
+{
+  Serial.print("Message arrived [");
+  Serial.print(topic);
+  Serial.print("] ");
+  String message;
+  String tpc;
+  for (int i = 0; i < length; i++) //format the data into horizontal alignment
+  {
+    message = message + (char)payload[i];
+  }
+  Serial.println(message);
+  tpc = getMsg(topic, message); //link the topic and message with data from sensor ready to be sent to MQTT server
+}
+
+
+//============================================ void setup
+void setup() 
+{
+  pinMode(LEDP,OUTPUT); //--> On Board LED port Direction output
+  digitalWrite(LEDP, LOW); 
+  
+  Serial.begin(115200); //Serial monitor data reading speed
+  delay(500);
+
+  lcd.init();
+  lcd.backlight();
+  lcd.print("Minitor V.1");
+  delay(1000);
+  lcd.clear();
+  lcd.print("Initiating...");
+  delay(1000);
+  lcd.clear();
+  
+  Serial.println();
+  Serial.print("Wifi connecting to "); 
+  Serial.println( ssid );
+  
+  WiFi.begin(ssid, password); //--> Connect to your WiFi router
+  
+  Serial.println();
+  Serial.print("Connecting"); //print connecting
+
+  lcd.print("Connecting to ");
+  lcd.setCursor(0,1);
+  lcd.print(ssid);
+    
+
+  //----------------------------------------Wait for connection
+  Serial.print("Connecting");
+  while (WiFi.status() != WL_CONNECTED) 
+  {
+    delay(500);
+    Serial.print(".");
+    //----------------------------------------Make the On Board Flashing LED on the process of connecting to the wifi router.
+    digitalWrite(LEDP, HIGH);
+    delay(250);
+    digitalWrite(LEDP, LOW);
+    delay(250);
+    
+  }
+  //----------------------------------------
+  digitalWrite(LEDP, LOW); //--> Turn off the On Board LED when it is connected to the wifi router.
+  //----------------------------------------If successfully connected to the wifi router, the IP Address that will be visited is displayed in the serial monitor
+  
+  Serial.println(LINE.getVersion());  
+  Serial.println("");
+  Serial.print("Successfully connected to : ");
+  Serial.println(ssid);
+  Serial.print("IP address: ");
+  Serial.println(WiFi.localIP());
+  Serial.println();
+  //----------------------------------------
+  WiFi.setAutoReconnect(true); //Auto-Reconnect to selected wifi when connection is lost
+  WiFi.persistent(true);
+  //----------------------------------------
+  client.setServer(mqtt_server, mqtt_port); //show info of connected MQTT server
+  client.setCallback(callback);
+  //----------------------------------------
+  lcd.clear();
+  lcd.print("WiFi connected");
+  delay(1000);
+  lcd.clear();
+  sensors.begin();
+
+
+}
+//==============================================================================
+//============================================================================== void loop
+void loop() 
+{
+if (!client.connected()) //Auto-reconnection to MQTT server
+  {
+    reconnect();
+  }
+
+  sensors.requestTemperatures();
+
+  T= sensors.getTempCByIndex(0);
+  Serial.print("Temp = ");
+  Serial.println((float)T,1);
+
+//----แสดงค่า temp ผ่าน lcd
+   lcd.setCursor(6,1); 
+   lcd.print("T:");
+   
+  
+   lcd.setCursor(9,1);
+   lcd.print((float)T,1);
+
+   lcd.setCursor(14,1);
+   lcd.print("C");  
+//----รับค่าจากปุ่ม
+buttonState1 = digitalRead(buttonPin1);
+buttonState2 = digitalRead(buttonPin2);
+
+  
+    if (buttonState1 == HIGH) // each pressing increase Temp Threshold #1 by 0.5 
+  {
+      limit1=limit1+0.5;
+      
+} 
+    if (buttonState2 == HIGH) // each pressing increase Temp Threshold #2 by 0.5
+  {
+    limit2=limit2+0.5;
+  } 
+//---------------------------------------- To reset the thresholds to 0 when any reaches 10
+if(limit1>=10.5)
+{
+
+limit1=0;
+}
+
+if(limit2>=10.5)
+{
+
+limit2=0; 
+}
+lastButtonState1 = buttonState1;
+lastButtonState2 = buttonState2;
+
+//---------------------------------------- Display Thresholds on LCD
+  lcd.setCursor(0,2);
+  lcd.print("UT:");
+
+  lcd.setCursor(10,2);
+  lcd.print("LT:");
+
+  
+lcd.setCursor(6,2);
+lcd.print(limit1,1);
+
+lcd.setCursor(16,2);
+lcd.print(limit2,1);
+
+//---------------------------------------- Arguement for notification (LED + Line notification)when Temp is out of Threshold range
+  if((T>=limit1)||(T<=limit2))  
+  {
+    error++; 
+    Serial.println("error=");
+    Serial.println(error);
+  }
+    else 
+    digitalWrite(LEDP,LOW); 
+    Serial.println("LED OFF");   
+  {
+    error=0;
+    Serial.println("normal");
+  }
+
+     if(error>842) //if error is more than approx 20 minutes 
+      {
+        Notifiy(); //run Notify function
+      }
+     else 
+      {
+        Serial.println("less than 30 sec");
+      }
+
+//---------------------------------------- To send data to MQTT Server
+int L = digitalRead(LEDP);  //send led status 
+  String data = "{\"data\":{\"Temperature\": " + String((float)T,1) + ",\"Upper_Limit\": " + String(limit1)+ ",\"error\": "+ String(error)+ ",\"LEDS\": " + String(LEDS) + ",\"Lower_Limit\": " + String(limit2) + "}}"; //format the data from hardware and into TOPIC+DATA and send to corresponding TOPIC set in MQTT Server
+  Serial.println(data);
+  data.toCharArray(msg , (data.length() + 1)); //package data into suitable message format to be sent over network(char)
+  client.publish("@shadow/data/update", msg); //send to  "shadow" in MQTT server for storage
+  client.loop();
+  delay(1000);  //try to send data to MQTT sever every X second
+LEDS=0;  
+}
+//==============================================================================
+
+void Notify()
+{   LINE.setToken(LINE_TOKEN);
+    LINE.notify("Alert temp!!!!!");     //send text message containing Alert Temp!!!    
+    digitalWrite(LEDP,HIGH);            //turn on LED
+    Serial.println("LED ON");           
+    LEDS=1; 
+    error=0; //reset timer
+}
+//*****
