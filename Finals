@@ -253,7 +253,7 @@ int L = digitalRead(LEDP);  //send led status
   client.publish("@shadow/data/update", msg); //send to  "shadow" in MQTT server for storage
   client.loop();
   delay(1000);  //try to send data to MQTT sever every X second
-LEDS=0;  
+LEDS=0;  //set the initial LED status on NETPIE to 0
 }
 //==============================================================================
 
@@ -262,7 +262,7 @@ void Notify()
     LINE.notify("Alert temp!!!!!");     //send text message containing Alert Temp!!!    
     digitalWrite(LEDP,HIGH);            //turn on LED
     Serial.println("LED ON");           
-    LEDS=1; 
+    LEDS=1;                             //turn on LED indicator on NETPIE
     error=0; //reset timer
 }
 //*****
