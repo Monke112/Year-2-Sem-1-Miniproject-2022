@@ -229,11 +229,11 @@ lcd.print(limit2,1);
     Serial.println(error);
   }
     else 
-    digitalWrite(LEDP,LOW); 
-    Serial.println("LED OFF");   
-  {
+   {
     error=0;
     Serial.println("normal");
+    digitalWrite(LEDP,LOW);
+    LEDS=0;  //set the initial LED status on NETPIE to 0
   }
 
      if(error>842) //if error is more than approx 20 minutes 
@@ -253,7 +253,7 @@ int L = digitalRead(LEDP);  //send led status
   client.publish("@shadow/data/update", msg); //send to  "shadow" in MQTT server for storage
   client.loop();
   delay(1000);  //try to send data to MQTT sever every X second
-LEDS=0;  //set the initial LED status on NETPIE to 0
+
 }
 //==============================================================================
 
@@ -266,3 +266,4 @@ void Notify()
     error=0; //reset timer
 }
 //*****
+
